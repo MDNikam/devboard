@@ -6,7 +6,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [advanced]
 
   workflow_dispatch:
 
