@@ -51,9 +51,46 @@ jobs:
 
 
 
-  # backend:
-  #   steps:
-  #     - Lint
-  #     - Build
-  #     - Test
-  #     - Push
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+          go-version-file: go.mod
+          cache: go
+          cache-dependency-path: go.sum
+
+      - name: Run go formatter
+        run: go fmt ./...
+        working-directory: backend
+
+      - name: Run Go vet
+        run: go vet ./...
+        working-directory: backend
+
+      - name: Run tests
+        run: go test ./...
+        working-directory: backend
+
+      - name: Docker Login setup
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+      - name: Build Docker and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/Dockerfile.multistage
+          file: ./backend/Dockerfile.multistage
+          push: true
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/devboard-backend:latest
+      
+      
+
+      
