@@ -19,19 +19,27 @@ jobs:
 
     steps:
 
-      # 1. Checkout the exact commit that passed CI
+      # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      # 2. Create .env file
+      # 2. Create environment file
       - name: Configure environment
         env:
           POSTGRES_USER: ${{ vars.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ vars.POSTGRES_DB }}
         run: |
+          set -e
+
+          test -n "$POSTGRES_USER" || (echo "POSTGRES_USER missing" && exit 1)
+          test -n "$POSTGRES_PASSWORD" || (echo "POSTGRES_PASSWORD missing" && exit 1)
+          test -n "$POSTGRES_DB" || (echo "POSTGRES_DB missing" && exit 1)
+
+          umask 077
+
           cat > "$GITHUB_WORKSPACE/.env" <<EOF
           POSTGRES_USER=${POSTGRES_USER}
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -43,19 +51,14 @@ jobs:
           IMAGE_TAG=latest
           EOF
 
-      # 3. Verify environment variables
-      - name: Verify environment
-        env:
-          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
-        run: |
-          test -n "$POSTGRES_USER" || (echo "POSTGRES_USER missing" && exit 1)
-          test -n "$POSTGRES_PASSWORD" || (echo "POSTGRES_PASSWORD missing" && exit 1)
-          test -n "$POSTGRES_DB" || (echo "POSTGRES_DB missing" && exit 1)
-          test -f "$GITHUB_WORKSPACE/.env" || (echo ".env file missing" && exit 1)
+          echo ".env file created successfully"
 
-          echo "Environment configuration successful"
+      # 3. Verify environment file
+      - name: Verify environment
+        run: |
+          test -s "$GITHUB_WORKSPACE/.env"
+          test -f "$GITHUB_WORKSPACE/docker-compose.yml"
+          echo "Environment file and Compose file found"
 
       # 4. Verify Docker Hub credentials
       - name: Verify Docker credentials
@@ -65,10 +68,9 @@ jobs:
         run: |
           test -n "$DOCKERHUB_USERNAME" || (echo "Docker username missing" && exit 1)
           test -n "$DOCKERHUB_TOKEN" || (echo "Docker token missing" && exit 1)
-
           echo "Docker credentials are configured"
 
-      # 5. Login to Docker Hub
+      # 5. Docker Hub Login
       - name: Docker Hub Login
         uses: docker/login-action@v4
         timeout-minutes: 3
@@ -79,19 +81,31 @@ jobs:
       # 6. Validate Docker Compose
       - name: Validate Docker Compose
         run: |
-          docker compose --env-file "$GITHUB_WORKSPACE/.env" config --quiet
+          docker compose \
+            --env-file "$GITHUB_WORKSPACE/.env" \
+            -f "$GITHUB_WORKSPACE/docker-compose.yml" \
+            config --quiet
 
-      # 7. Pull images from Docker Hub
+      # 7. Pull images
       - name: Pull Docker images
         run: |
-          docker compose --env-file "$GITHUB_WORKSPACE/.env" pull
+          docker compose \
+            --env-file "$GITHUB_WORKSPACE/.env" \
+            -f "$GITHUB_WORKSPACE/docker-compose.yml" \
+            pull
 
       # 8. Deploy containers
       - name: Deploy containers
         run: |
-          docker compose --env-file "$GITHUB_WORKSPACE/.env" up -d
+          docker compose \
+            --env-file "$GITHUB_WORKSPACE/.env" \
+            -f "$GITHUB_WORKSPACE/docker-compose.yml" \
+            up -d
 
-      # 9. Check deployment
+      # 9. Verify deployment
       - name: Check deployment
         run: |
-          docker compose --env-file "$GITHUB_WORKSPACE/.env" ps
+          docker compose \
+            --env-file "$GITHUB_WORKSPACE/.env" \
+            -f "$GITHUB_WORKSPACE/docker-compose.yml" \
+            ps
