@@ -34,9 +34,9 @@ jobs:
         run: |
           set -e
 
-          test -n "$POSTGRES_USER" || (echo "POSTGRES_USER missing" && exit 1)
-          test -n "$POSTGRES_PASSWORD" || (echo "POSTGRES_PASSWORD missing" && exit 1)
-          test -n "$POSTGRES_DB" || (echo "POSTGRES_DB missing" && exit 1)
+          test -n "$POSTGRES_USER" || exit 1
+          test -n "$POSTGRES_PASSWORD" || exit 1
+          test -n "$POSTGRES_DB" || (echo "POSTGRES_DB is missing" && exit 1)
 
           umask 077
 
@@ -51,7 +51,8 @@ jobs:
           IMAGE_TAG=latest
           EOF
 
-          echo ".env file created successfully"
+          echo "Environment file created"
+          echo "POSTGRES_DB configured: $POSTGRES_DB"
 
       # 3. Verify environment file
       - name: Verify environment
