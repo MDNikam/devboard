@@ -8,24 +8,31 @@ on:
       - completed
     branches: [advanced]
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
+
+      # 1. Checkout the exact commit that passed CI
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
+      # 2. Create .env file
       - name: Configure environment
         env:
           POSTGRES_USER: ${{ vars.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ vars.POSTGRES_DB }}
         run: |
-          cat > .env <<EOF
+          cat > "$GITHUB_WORKSPACE/.env" <<EOF
           POSTGRES_USER=${POSTGRES_USER}
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
           POSTGRES_DB=${POSTGRES_DB}
@@ -36,41 +43,55 @@ jobs:
           IMAGE_TAG=latest
           EOF
 
-      - name: Debug environment file
-        run: |
-          echo "Current directory:"
-          pwd
-
-          echo "Checking .env file:"
-          ls -la .env
-
-          echo "Checking port variables:"
-          grep -E '^(POSTGRES_HOST_PORT|BACKEND_PORT|BACKEND_HOST_PORT|FRONTEND_HOST_PORT|IMAGE_TAG)=' .env
-          
-      - name: Verify environment configuration
+      # 3. Verify environment variables
+      - name: Verify environment
         env:
           POSTGRES_USER: ${{ vars.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ vars.POSTGRES_DB }}
         run: |
-          test -n "$POSTGRES_USER" || (echo "POSTGRES_USER is missing" && exit 1)
-          test -n "$POSTGRES_PASSWORD" || (echo "POSTGRES_PASSWORD is missing" && exit 1)
-          test -n "$POSTGRES_DB" || (echo "POSTGRES_DB is missing" && exit 1)
-          test -f .env || (echo ".env file missing" && exit 1)
-          echo ".env file created and required variables are available"
-    
+          test -n "$POSTGRES_USER" || (echo "POSTGRES_USER missing" && exit 1)
+          test -n "$POSTGRES_PASSWORD" || (echo "POSTGRES_PASSWORD missing" && exit 1)
+          test -n "$POSTGRES_DB" || (echo "POSTGRES_DB missing" && exit 1)
+          test -f "$GITHUB_WORKSPACE/.env" || (echo ".env file missing" && exit 1)
 
+          echo "Environment configuration successful"
+
+      # 4. Verify Docker Hub credentials
+      - name: Verify Docker credentials
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$DOCKERHUB_USERNAME" || (echo "Docker username missing" && exit 1)
+          test -n "$DOCKERHUB_TOKEN" || (echo "Docker token missing" && exit 1)
+
+          echo "Docker credentials are configured"
+
+      # 5. Login to Docker Hub
       - name: Docker Hub Login
         uses: docker/login-action@v4
+        timeout-minutes: 3
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 6. Validate Docker Compose
       - name: Validate Docker Compose
-        run: docker compose config --quiet
+        run: |
+          docker compose --env-file "$GITHUB_WORKSPACE/.env" config --quiet
 
+      # 7. Pull images from Docker Hub
       - name: Pull Docker images
-        run: docker compose pull
+        run: |
+          docker compose --env-file "$GITHUB_WORKSPACE/.env" pull
 
+      # 8. Deploy containers
       - name: Deploy containers
-        run: docker compose up -d
+        run: |
+          docker compose --env-file "$GITHUB_WORKSPACE/.env" up -d
+
+      # 9. Check deployment
+      - name: Check deployment
+        run: |
+          docker compose --env-file "$GITHUB_WORKSPACE/.env" ps
