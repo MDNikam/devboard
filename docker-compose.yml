@@ -1,40 +1,62 @@
+
+# DevBoard - Frontend + Go Backend + PostgreSQL
+
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: devboard-postgres
+    restart: unless-stopped
+
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init/postgres:/docker-entrypoint-initdb.d:ro
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10
+
     ports:
-      - "${POSTGRES_HOST_PORT}:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
 
   backend:
-    build: ./backend
-    image: trainwithshubham/devboard-backend:${IMAGE_TAG:-latest}
+    image: mayurnikam7559333233/devboard-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: devboard-backend
+    restart: unless-stopped
+
     environment:
-      PORT: "${BACKEND_PORT}"
-      POSTGRES_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+      PORT: "${BACKEND_PORT:-8080}"
+      POSTGRES_URL: "postgres://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?sslmode=disable"
+
     depends_on:
       postgres:
         condition: service_healthy
+
     ports:
-      - "${BACKEND_HOST_PORT}:${BACKEND_PORT}"   # host:container — direct curl/debug; the UI uses the gateway
+      - "${BACKEND_HOST_PORT:-8081}:${BACKEND_PORT:-8080}"
 
   frontend:
-    build: ./frontend
-    image: trainwithshubham/devboard-frontend:${IMAGE_TAG:-latest}
+    image: mayurnikam7559333233/devboard-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: devboard-frontend
+    restart: unless-stopped
+
     depends_on:
       - backend
+
     ports:
-      - "${FRONTEND_HOST_PORT}:4173"   # vite preview serves on 4173 inside the container
+      - "${FRONTEND_HOST_PORT:-8080}:4173"
 
 volumes:
   pgdata:
