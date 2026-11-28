@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: bridgecrewio/checkov-action@c10e2438743528f9e4549758fad8b7a62052541d # v12
+      - uses: bridgecrewio/checkov-action@d4770c1ac4a966d8c3305b79c348c26232123aa1 # v12
         with:
           directory: terraform
           framework: terraform
