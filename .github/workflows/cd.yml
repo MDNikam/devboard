@@ -36,6 +36,17 @@ jobs:
           IMAGE_TAG=latest
           EOF
 
+      - name: Debug environment file
+        run: |
+          echo "Current directory:"
+          pwd
+
+          echo "Checking .env file:"
+          ls -la .env
+
+          echo "Checking port variables:"
+          grep -E '^(POSTGRES_HOST_PORT|BACKEND_PORT|BACKEND_HOST_PORT|FRONTEND_HOST_PORT|IMAGE_TAG)=' .env
+          
       - name: Verify environment configuration
         env:
           POSTGRES_USER: ${{ vars.POSTGRES_USER }}
