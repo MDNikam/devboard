@@ -36,6 +36,19 @@ jobs:
           IMAGE_TAG=latest
           EOF
 
+      - name: Verify environment configuration
+        env:
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+        run: |
+          test -n "$POSTGRES_USER" || (echo "POSTGRES_USER is missing" && exit 1)
+          test -n "$POSTGRES_PASSWORD" || (echo "POSTGRES_PASSWORD is missing" && exit 1)
+          test -n "$POSTGRES_DB" || (echo "POSTGRES_DB is missing" && exit 1)
+          test -f .env || (echo ".env file missing" && exit 1)
+          echo ".env file created and required variables are available"
+    
+
       - name: Docker Hub Login
         uses: docker/login-action@v4
         with:
